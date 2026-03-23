@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShopDB — Store Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="script.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+
+<header>
+  <div class="logo">Shop<span>DB</span></div>
+  <div class="tabs">
+    <button class="active" onclick="go('overview',this)">Overview</button>
+    <button onclick="go('orders',this)">Orders</button>
+    <button onclick="go('products',this)">Products</button>
+    <button onclick="go('customers',this)">Customers</button>
+    <button onclick="go('alerts',this)">⚠ Stock Alerts</button>
+    <button onclick="go('place-order',this)">+ New Order</button>
+  </div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<main>
+
+  <!-- ════ OVERVIEW ════ -->
+  <div id="p-overview" class="page active">
+    <div class="page-title">Dashboard Overview</div>
+    <div class="page-desc">Live data from your MySQL database</div>
+    <div id="db-status"></div>
+    <div id="ov-loading" class="loading"><div class="spinner"></div> Loading from database…</div>
+    <div id="ov-content" style="display:none">
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">Total Revenue</div>
+          <div class="kpi-value blue" id="kpi-rev">—</div>
+          <div class="kpi-note" id="kpi-ord-note">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Avg Order Value</div>
+          <div class="kpi-value" id="kpi-aov">—</div>
+          <div class="kpi-note">Per fulfilled order</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Total Customers</div>
+          <div class="kpi-value green" id="kpi-cust">—</div>
+          <div class="kpi-note">Registered accounts</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Cancellation Rate</div>
+          <div class="kpi-value amber" id="kpi-cancel">—</div>
+          <div class="kpi-note">Of all orders</div>
+        </div>
+      </div>
+      <div class="row-3-2">
+        <div class="card">
+          <div class="card-title">Monthly Revenue</div>
+          <div class="cvw" style="height:220px"><canvas id="c-monthly"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Revenue by Category</div>
+          <div class="cvw" style="height:220px"><canvas id="c-cat"></canvas></div>
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="card">
+          <div class="card-title">Order Status Breakdown</div>
+          <div class="cvw" style="height:190px"><canvas id="c-status"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Payment Methods</div>
+          <div class="cvw" style="height:190px"><canvas id="c-pay"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ ORDERS ════ -->
+  <div id="p-orders" class="page">
+    <div class="page-title">Orders</div>
+    <div class="page-desc">All customer orders — filter and export as CSV</div>
+    <div class="toolbar">
+      <select id="ord-status" onchange="loadOrders()">
+        <option value="">All statuses</option>
+        <option>delivered</option><option>shipped</option>
+        <option>processing</option><option>confirmed</option><option>cancelled</option>
+      </select>
+      <select id="ord-pay" onchange="loadOrders()">
+        <option value="">All payment methods</option>
+        <option value="card">Card</option>
+        <option value="paypal">PayPal</option>
+        <option value="wallet">Wallet</option>
+      </select>
+      <!-- OUTPUT: Export to CSV -->
+      <button class="btn btn-green ml-auto" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+    <div id="ord-loading" class="loading"><div class="spinner"></div> Loading orders…</div>
+    <div id="ord-content" style="display:none">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Order #</th><th>Customer</th><th>Date</th>
+            <th>Items</th><th>Total</th><th>Payment</th><th>Status</th>
+          </tr></thead>
+          <tbody id="orders-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PRODUCTS ════ -->
+  <div id="p-products" class="page">
+    <div class="page-title">Products</div>
+    <div class="page-desc">Catalog with live stock levels — add new products below</div>
+
+    <!-- INPUT: Add Product Form -->
+    <div class="form-card">
+      <div class="form-title">Add New Product</div>
+      <div id="prod-form-msg"></div>
+      <div class="form-grid cols-3">
+        <div class="form-group">
+          <label>Product Name *</label>
+          <input type="text" id="f-prod-name" placeholder="e.g. Wireless Mouse">
+        </div>
+        <div class="form-group">
+          <label>SKU *</label>
+          <input type="text" id="f-prod-sku" placeholder="e.g. ELEC-050">
+        </div>
+        <div class="form-group">
+          <label>Category *</label>
+          <select class="form-select" id="f-prod-cat">
+            <option value="">Select category…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Price (USD) *</label>
+          <input type="number" id="f-prod-price" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label>Stock Quantity</label>
+          <input type="number" id="f-prod-stock" placeholder="0" min="0">
+        </div>
+        <div class="form-group full">
+          <label>Description</label>
+          <textarea id="f-prod-desc" placeholder="Short product description (optional)"></textarea>
+        </div>
+      </div>
+      <div class="form-footer">
+        <button class="btn btn-primary" onclick="submitProduct()">Add Product</button>
+        <button class="btn btn-outline" onclick="clearForm('product')">Clear</button>
+        <span class="form-msg" id="prod-submit-status"></span>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <select id="prod-cat" onchange="loadProducts()">
+        <option value="">All categories</option>
+        <option>Electronics</option><option>Clothing</option>
+        <option>Home &amp; Garden</option><option>Books</option>
+        <option>Sports &amp; Outdoors</option><option>Beauty &amp; Health</option>
+      </select>
+    </div>
+    <div id="prod-loading" class="loading"><div class="spinner"></div> Loading products…</div>
+    <div id="prod-content" style="display:none">
+      <div class="prod-grid" id="prod-grid"></div>
+      <div class="card">
+        <div class="card-title">Revenue per Product</div>
+        <div class="cvw" style="height:200px"><canvas id="c-prod-rev"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ CUSTOMERS ════ -->
+  <div id="p-customers" class="page">
+    <div class="page-title">Customers</div>
+    <div class="page-desc">Lifetime value and order history — add new customers below</div>
+
+    <!-- INPUT: Add Customer Form -->
+    <div class="form-card">
+      <div class="form-title">Add New Customer</div>
+      <div id="cust-form-msg"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>First Name *</label>
+          <input type="text" id="f-cust-first" placeholder="e.g. Jane">
+        </div>
+        <div class="form-group">
+          <label>Last Name *</label>
+          <input type="text" id="f-cust-last" placeholder="e.g. Doe">
+        </div>
+        <div class="form-group">
+          <label>Email Address *</label>
+          <input type="email" id="f-cust-email" placeholder="jane@example.com">
+        </div>
+        <div class="form-group">
+          <label>Phone (optional)</label>
+          <input type="tel" id="f-cust-phone" placeholder="+1 555 000 0000">
+        </div>
+      </div>
+      <div class="form-footer">
+        <button class="btn btn-primary" onclick="submitCustomer()">Add Customer</button>
+        <button class="btn btn-outline" onclick="clearForm('customer')">Clear</button>
+        <span class="form-msg" id="cust-submit-status"></span>
+      </div>
+    </div>
+
+    <div id="cust-loading" class="loading"><div class="spinner"></div> Loading customers…</div>
+    <div id="cust-content" style="display:none">
+      <div class="row-2">
+        <div class="card">
+          <div class="card-title">Top Customers by Lifetime Value</div>
+          <div id="cust-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Lifetime Value by Customer</div>
+          <div class="cvw" style="height:230px"><canvas id="c-ltv"></canvas></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Customer</th><th>Email</th><th>Orders</th>
+            <th>Lifetime Value</th><th>Avg Order</th><th>Tier</th>
+          </tr></thead>
+          <tbody id="cust-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ STOCK ALERTS ════ -->
+  <div id="p-alerts" class="page">
+    <div class="page-title">⚠ Stock Alerts</div>
+    <div class="page-desc">Products that are out of stock or below their restock threshold</div>
+    <div id="alerts-loading" class="loading"><div class="spinner"></div> Checking stock levels…</div>
+    <div id="alerts-content" style="display:none">
+      <div class="row-2" style="margin-bottom:20px">
+        <div class="kpi">
+          <div class="kpi-label">Out of Stock</div>
+          <div class="kpi-value" style="color:var(--red)" id="kpi-oos">—</div>
+          <div class="kpi-note">Needs immediate restock</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Low Stock</div>
+          <div class="kpi-value amber" id="kpi-low">—</div>
+          <div class="kpi-note">Below threshold</div>
+        </div>
+      </div>
+      <!-- OUTPUT: Low Stock Alert List -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div class="card-title" style="margin-bottom:0">Products Needing Restock</div>
+          <button class="btn btn-green btn-sm" onclick="exportAlerts()">⬇ Export Alert List</button>
+        </div>
+        <div id="alerts-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PLACE ORDER ════ -->
+  <div id="p-place-order" class="page">
+    <div class="page-title">Place New Order</div>
+    <div class="page-desc">Select a customer, add products, and confirm the order</div>
+
+    <div id="order-result"></div>
+
+    <div class="row-2" style="align-items:start">
+
+      <!-- LEFT: Customer + Items -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <!-- Step 1: Customer -->
+        <div class="form-card">
+          <div class="form-title">① Customer</div>
+          <div class="form-group">
+            <label>Search by name or email *</label>
+            <input type="text" id="cust-search" placeholder="Start typing…" oninput="searchCustomers(this.value)" autocomplete="off">
+            <div id="cust-suggestions" style="display:none;border:1px solid var(--border);border-radius:8px;background:var(--white);margin-top:4px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.08)"></div>
+          </div>
+          <div id="selected-customer" style="display:none;margin-top:12px;padding:12px;background:var(--bg);border-radius:8px;display:flex;align-items:center;gap:10px">
+            <div id="sel-cust-avatar" style="width:36px;height:36px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0"></div>
+            <div style="flex:1">
+              <div id="sel-cust-name" style="font-weight:600;font-size:13.5px"></div>
+              <div id="sel-cust-email" style="font-size:11px;color:var(--faint)"></div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="clearCustomer()">Change</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Add Items -->
+        <div class="form-card">
+          <div class="form-title">② Add Items</div>
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:end;margin-bottom:12px">
+            <div class="form-group" style="margin:0">
+              <label>Product</label>
+              <select class="form-select" id="item-product">
+                <option value="">Select a product…</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Qty</label>
+              <input type="number" id="item-qty" value="1" min="1" style="width:70px">
+            </div>
+            <button class="btn btn-primary" onclick="addItem()" style="margin-bottom:1px">Add</button>
+          </div>
+          <div id="item-error" style="font-size:12px;color:var(--red);margin-bottom:8px;display:none"></div>
+
+          <!-- Cart table -->
+          <div id="cart-empty" style="padding:20px 0;text-align:center;color:var(--faint);font-size:13px">No items added yet.</div>
+          <div id="cart-table" style="display:none">
+            <table style="font-size:13px">
+              <thead><tr>
+                <th>Product</th><th style="text-align:right">Price</th>
+                <th style="text-align:center">Qty</th>
+                <th style="text-align:right">Line Total</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="cart-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Step 3: Shipping -->
+        <div class="form-card">
+          <div class="form-title">③ Shipping & Notes</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Shipping Method</label>
+              <select class="form-select" id="order-shipping" onchange="recalcTotals()">
+                <option value="standard">Standard — $5.99 (free over $75)</option>
+                <option value="express">Express — $14.99</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Payment Method</label>
+              <select class="form-select" id="order-payment">
+                <option value="card">Card</option>
+                <option value="paypal">PayPal</option>
+                <option value="wallet">Wallet</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label>Notes (optional)</label>
+              <textarea id="order-notes" placeholder="Special instructions, gift message…" style="min-height:56px"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Order summary -->
+      <div class="form-card" style="position:sticky;top:72px">
+        <div class="form-title">Order Summary</div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--sub)">Subtotal</span>
+            <span id="sum-subtotal">$0.00</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--sub)">Shipping</span>
+            <span id="sum-shipping">$5.99</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--sub)">Tax (8.75%)</span>
+            <span id="sum-tax">$0.00</span>
+          </div>
+          <div style="height:1px;background:var(--border)"></div>
+          <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700">
+            <span>Total</span>
+            <span id="sum-total">$0.00</span>
+          </div>
+        </div>
+
+        <div id="sum-items" style="font-size:12px;color:var(--faint);margin-bottom:18px">0 items in order</div>
+
+        <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px" onclick="submitOrder()">
+          Place Order
+        </button>
+        <button class="btn btn-outline" style="width:100%;justify-content:center;padding:10px;margin-top:8px" onclick="resetOrderForm()">
+          Clear All
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<script>
+</script>
+</body>
+</html>
